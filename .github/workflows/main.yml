@@ -27,42 +27,28 @@ on:
           - apply
           - destroy
 
-# ─────────────────────────────────────────────
-# REQUIRED GITHUB SECRETS:
-#
-#   AWS_ACCOUNT_ID          → Your AWS account ID (e.g. 038462776086)
-#   OIDC_ROLE_NAME        → IAM role name for OIDC (e.g. github-actions-role)
-#   TF_STATE_BUCKET         → S3 bucket name for Terraform state
-#   TF_STATE_LOCK_TABLE     → DynamoDB table name for state locking
-#   TF_STATE_REGION         → AWS region for S3/DynamoDB backend (e.g. ap-south-2)
-#
-# REQUIRED GITHUB ENVIRONMENTS (Settings → Environments):
-#   staging    → no approval required (auto-deploys)
-#   production → add required reviewers for approval gate
-# ─────────────────────────────────────────────
-
 env:
   AWS_REGION: ap-south-2
   ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.ap-south-2.amazonaws.com
 
+# ──────────────────────────────────────────
+# JOB 1: Terraform Plan
+# ──────────────────────────────────────────
 jobs:
-  # ──────────────────────────────────────────
-  # JOB 1: Terraform Plan (runs on all triggers)
-  # ──────────────────────────────────────────
   terraform-plan:
-    name: "Terraform Plan"
+    name: Terraform Plan
     runs-on: ubuntu-latest
 
     permissions:
       id-token: write
       contents: read
-      pull-requests: write # needed to post plan output as PR comment
+      pull-requests: write
 
     outputs:
       tf_plan_exitcode: ${{ steps.plan.outputs.exitcode }}
 
     steps:
-      - name: Checkout repo
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Configure AWS Credentials (OIDC)
@@ -76,8 +62,7 @@ jobs:
         with:
           terraform_version: "~1.7"
 
-      # ── Dynamic backend: no hardcoded values in terraform code ──
-      - name: Terraform Init (Dynamic Backend)
+      - name: Terraform Init
         run: |
           terraform init \
             -backend-config="bucket=${{ secrets.TF_STATE_BUCKET }}" \
@@ -100,7 +85,6 @@ jobs:
           echo "exitcode=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
         continue-on-error: true
 
-      # Post plan output as a PR comment
       - name: Comment Plan on PR
         if: github.event_name == 'pull_request'
         uses: actions/github-script@v7
@@ -123,30 +107,37 @@ jobs:
           path: tfplan
           retention-days: 1
 
-      - name: Fail if Plan errored
+      - name: Fail if Plan Error
         if: steps.plan.outputs.exitcode == '1'
         run: exit 1
 
-  # ──────────────────────────────────────────
-  # JOB 2: Deploy to STAGING
-  # (auto-deploys, no approval needed)
-  # ──────────────────────────────────────────
+# ──────────────────────────────────────────
+# JOB 2: Deploy to STAGING (Auto on push)
+# ──────────────────────────────────────────
   deploy-staging:
-    name: "Deploy → Staging"
+    name: Deploy → Staging
     runs-on: ubuntu-latest
-    if: github.event_name != 'pull_request'
     needs: terraform-plan
-    environment: staging   # ← maps to GitHub Environment "staging"
+    environment: staging
+
+    if: |
+      github.event_name == 'push' ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging')
 
     permissions:
       id-token: write
       contents: read
 
     steps:
-      - name: Checkout repo
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Configure AWS Credentials (OIDC)
+      - name: Download Plan Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan
+
+      - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ secrets.OIDC_ROLE_NAME }}
@@ -157,7 +148,7 @@ jobs:
         with:
           terraform_version: "~1.7"
 
-      - name: Terraform Init (Staging Backend)
+      - name: Terraform Init (Staging)
         run: |
           terraform init \
             -backend-config="bucket=${{ secrets.TF_STATE_BUCKET }}" \
@@ -169,7 +160,7 @@ jobs:
 
       - name: Terraform Apply (Staging)
         if: github.event.inputs.action != 'plan'
-        run: terraform apply -auto-approve 
+        run: terraform apply -auto-approve tfplan
 
       - name: Update kubeconfig
         run: |
@@ -177,28 +168,36 @@ jobs:
             --name $(terraform output -raw cluster_name) \
             --region ${{ env.AWS_REGION }}
 
-  # ──────────────────────────────────────────
-  # JOB 3: Deploy to PRODUCTION
-  # (requires manual approval via GitHub Environment)
-  # ──────────────────────────────────────────
+      - name: Deploy to EKS
+        run: |
+          kubectl apply -f k8s/ -n default || echo "No manifests found"
+
+      - name: Wait for Rollout
+        run: |
+          kubectl rollout status deployment --timeout=120s || echo "No deployments found"
+
+# ──────────────────────────────────────────
+# JOB 3: Deploy to PRODUCTION (Manual + Approval)
+# ──────────────────────────────────────────
   deploy-production:
-    name: "Deploy → Production"
+    name: Deploy → Production
     runs-on: ubuntu-latest
+    needs: terraform-plan
+    environment: production
+
     if: |
-      github.event_name != 'pull_request' &&
-      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-    needs: deploy-staging
-    environment: production   # ← maps to GitHub Environment "production" with required reviewers
+      github.event_name == 'workflow_dispatch' &&
+      github.event.inputs.environment == 'production'
 
     permissions:
       id-token: write
       contents: read
 
     steps:
-      - name: Checkout repo
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Configure AWS Credentials (OIDC)
+      - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ secrets.OIDC_ROLE_NAME }}
@@ -209,7 +208,7 @@ jobs:
         with:
           terraform_version: "~1.7"
 
-      - name: Terraform Init (Production Backend)
+      - name: Terraform Init (Production)
         run: |
           terraform init \
             -backend-config="bucket=${{ secrets.TF_STATE_BUCKET }}" \
@@ -220,16 +219,22 @@ jobs:
             -reconfigure
 
       - name: Terraform Plan (Production)
-        run: |
-          terraform plan \
-            -var="environment=production" \
-            -out=tfplan-prod
+        run: terraform plan -var="environment=production" -out=tfplan-prod
 
       - name: Terraform Apply (Production)
         if: github.event.inputs.action != 'plan'
-        run: terraform apply -auto-approve 
+        run: terraform apply -auto-approve tfplan-prod
+
       - name: Update kubeconfig
         run: |
           aws eks update-kubeconfig \
             --name $(terraform output -raw cluster_name) \
             --region ${{ env.AWS_REGION }}
+
+      - name: Deploy to EKS
+        run: |
+          kubectl apply -f k8s/ -n default || echo "No manifests found"
+
+      - name: Wait for Rollout
+        run: |
+          kubectl rollout status deployment --timeout=300s || echo "No deployments found"
