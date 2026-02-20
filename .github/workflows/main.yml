@@ -31,7 +31,7 @@ on:
 # REQUIRED GITHUB SECRETS:
 #
 #   AWS_ACCOUNT_ID          → Your AWS account ID (e.g. 038462776086)
-#   GITHUB_OIDC_ROLE        → IAM role name for OIDC (e.g. github-actions-role)
+#   OIDC_ROLE_NAME        → IAM role name for OIDC (e.g. github-actions-role)
 #   TF_STATE_BUCKET         → S3 bucket name for Terraform state
 #   TF_STATE_LOCK_TABLE     → DynamoDB table name for state locking
 #   TF_STATE_REGION         → AWS region for S3/DynamoDB backend (e.g. ap-south-2)
@@ -68,7 +68,7 @@ jobs:
       - name: Configure AWS Credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ secrets.GITHUB_OIDC_ROLE }}
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ secrets.OIDC_ROLE_NAME }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup Terraform
@@ -152,7 +152,7 @@ jobs:
       - name: Configure AWS Credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ secrets.GITHUB_OIDC_ROLE }}
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ secrets.OIDC_ROLE_NAME }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup Terraform
@@ -210,7 +210,7 @@ jobs:
       - name: Configure AWS Credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ secrets.GITHUB_OIDC_ROLE }}
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ secrets.OIDC_ROLE_NAME }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup Terraform
