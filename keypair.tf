@@ -1,0 +1,4 @@
+resource "aws_key_pair" "deployer" {
+  key_name   = "krishna-mac-key"
+  public_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQCs7y0g+Zgz2FcbsM7FZL1P/qHp8Ii+JyEoTZUKY+OvsNlKz5riu452HdiUr8SpmGY9y9xY05IKw6vkNEaNY4DfwrqCbS3i6BI3+lTqJelv5AcGJKuLZCAwcDDhePq1qKmXsdqv0pq+zGNJLr5MRNP2dRU7kc7rCzEsZNWupTp6nPoTKzx9U9WSJBRxqjC6bsiTrXdT18kaWE1n3gTJAT1l8ZUvcpVbQ44YWvAPavp2FYiKX7f1vehay6jaEnLMCDaGEOvQDMT84RiLIjVuTl/+WQN1gFaQNAt2J/jjoIfybuDvjWIu2U13yERgfaoBiiy5wD0vlHjOheECzq6xl/qrBRslS6qwR4WSweTU3lq6V7jOlu1cp8CZ+jpV5t2uNKC71UIJ8ZDYNEZBTS5VLZsrMAptkvaC0KFoc3jhXhsZPjy0Cp+as5Wrcia61G53Xsn51Gm/C44oaNmqJwyuVbkFFxcDj7b1tYZRIhLBEXFmX9B+UigymmOtt+8i+NpTkeE= krishnakishore@Krishnas-MacBook-Air.local"
+}
