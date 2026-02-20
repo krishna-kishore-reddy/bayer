@@ -22,7 +22,7 @@ variable "security_group_egress" {
   default = [-1]
 }
 
-variable "availability_zone" {
-  default = ["ap-south-2a"]
-  type = list(string)
+variable "environment" {
+  description = "Environment name (staging/production)"
+  type        = string
 }
