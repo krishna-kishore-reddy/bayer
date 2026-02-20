@@ -46,5 +46,9 @@ aws iam attach-role-policy \
     --role-name github-actions-role \
     --policy-arn arn:aws:iam::aws:policy/AmazonVPCFullAccess
 
+aws iam attach-role-policy \
+    --role-name github-actions-role \
+    --policy-arn arn:aws:iam::aws:policy/IAMFullAccess
+
 echo "Role created! Add this to GitHub secrets:"
 echo "GITHUB_OIDC_ROLE = github-actions-role"
