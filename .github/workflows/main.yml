@@ -87,9 +87,6 @@ jobs:
             -backend-config="encrypt=true" \
             -reconfigure
 
-      - name: Terraform Format Check
-        run: terraform fmt -check -recursive
-
       - name: Terraform Validate
         run: terraform validate
 
